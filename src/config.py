@@ -35,10 +35,33 @@ VALIDATION_FRACTION = 0.2
 RANDOM_SEED = 42
 
 # ---- Blocking ----
+# Dataset scale note: train_source1 ~2.2M rows, train_source2 ~5.0M, train_source3
+# ~5.3M (test is similar order of magnitude). A global sklearn NearestNeighbors /
+# TF-IDF fit over millions of vectors is NOT viable here (too slow, too much
+# memory). Blocking is therefore inverted-index-first: cheap dict lookups that
+# scale linearly, with similarity scoring (rapidfuzz) applied only WITHIN the
+# small per-entity candidate set produced by the index — never as a global search.
+
 # Max candidates kept per S1 entity after blocking/union, before the matcher scores them.
 MAX_CANDIDATES_PER_ENTITY = 40
-TFIDF_NGRAM_RANGE = (2, 4)  # character n-grams, good for typos/transliteration
-TFIDF_TOP_K = 25            # nearest neighbors pulled from TF-IDF/cosine blocking
+
+# Tokens (or n-grams) appearing in more than this fraction of the candidate pool
+# are excluded from the inverted index entirely — common words like "inc", "store",
+# "the" would otherwise create blocks with hundreds of thousands of entities and
+# make blocking effectively useless (and slow). Tune this after looking at the
+# actual token document-frequency distribution in Phase 1/2 EDA.
+MAX_TOKEN_DF_RATIO = 0.01  # a token in >1% of the pool is treated as a stopword
+
+# Character n-gram length used for the secondary (typo/transliteration-tolerant)
+# blocking index. Same max-df exclusion rule applies to n-grams too.
+NGRAM_LENGTH = 4
+MAX_NGRAM_DF_RATIO = 0.01
+
+# Row-processing batch size for anything iterating S1 entities — keeps memory
+# bounded and gives a natural place to log/checkpoint progress on multi-million-row
+# runs. Used by generate_candidates() and the feature/predict pipelines.
+CANDIDATE_BATCH_SIZE = 50_000
+
 MIN_SHARED_TOKENS = 1       # for inverted-index token blocking
 
 # ---- Matching model ----

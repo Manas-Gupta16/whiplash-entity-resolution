@@ -58,27 +58,56 @@ noise patterns — this feeds directly into `preprocess.py`'s abbreviation maps.
 
 ## Phase 2 — Preprocessing & Blocking
 
-**Goal:** normalization functions and a candidate-generation pipeline with measured
-recall on a held-out validation split.
+**Scale reality check:** `train_source1` ~2.2M rows, `train_source2` ~5.0M,
+`train_source3` ~5.3M; test set is similar order of magnitude. A global
+nearest-neighbor / TF-IDF search over the full pool is **not viable** at this
+size — too slow, too much memory. `src/blocking.py` is written around
+**inverted-index lookups** (word tokens + character n-grams, both with a
+max-document-frequency cutoff to drop stopword-like tokens), with similarity
+reranking (rapidfuzz) applied only to the small per-entity candidate set an
+index lookup returns — never as a search over the full pool.
+
+**Goal:** normalization functions and a candidate-generation pipeline with
+measured recall **and** measured runtime on a held-out validation split.
 
 Tasks:
 1. Fill in `LEGAL_SUFFIX_MAP` / `ADDRESS_ABBR_MAP` in `src/preprocess.py` from Phase 1
    findings.
-2. Implement `generate_candidates()` in `src/blocking.py`:
-   - token inverted-index candidates (`token_candidates`)
-   - char n-gram TF-IDF + nearest-neighbor candidates (`tfidf_candidates`)
-   - union both, cap at `config.MAX_CANDIDATES_PER_ENTITY`
+2. Implement `generate_candidates()` in `src/blocking.py` following the plan already
+   laid out in its docstring:
+   - build `build_token_index()` and `build_ngram_index()` over the combined
+     S2+S3 pool (these drop overly-common tokens/n-grams automatically per
+     `config.MAX_TOKEN_DF_RATIO` / `MAX_NGRAM_DF_RATIO`)
+   - for each S1 entity, union `token_candidates()` + `ngram_candidates()`
+   - if the union exceeds `config.MAX_CANDIDATES_PER_ENTITY`, trim with
+     `rerank_candidates()` (rapidfuzz, over the small subset only)
+   - process S1 rows in batches (`config.CANDIDATE_BATCH_SIZE`), using
+     `itertuples()` not `iterrows()`, and log progress — a silent multi-hour
+     run with no feedback is a sign something is scaling wrong
 3. Split `train_source1` entities into train/val (`config.VALIDATION_FRACTION`,
-   split by `entity_id`, not by row).
+   split by `entity_id`, not by row). **Do this split on a reasonably sized
+   sample first** (e.g. 20–50k S1 entities) to get a fast dev/debug loop before
+   running blocking over the full multi-million-row set.
 4. Run blocking on the val split; compute **blocking recall** = fraction of true
    matches (from `train_ground_truth.tsv`) that appear in the generated candidate
-   set. Log this number explicitly.
+   set. Log this number explicitly, along with wall-clock time and peak memory
+   if easily available.
+5. Once the sample-scale run looks correct (recall target met, no runaway
+   candidate set sizes), run it against the full training set and re-measure
+   recall/runtime before moving to Phase 3.
 
-**Acceptance check:** blocking recall on validation ≥ ~0.90 (target — adjust based
-on what's achievable; if lower, add a blocking signal before moving on, since this
-is a hard ceiling on final performance). Candidate set size per entity should be
-small enough that Phase 3 feature computation is tractable (roughly tens, not
-thousands, per S1 entity).
+**Acceptance check:**
+- Blocking recall on validation ≥ ~0.90 (target — adjust based on what's
+  achievable; if lower, add a blocking signal — e.g. a third index, or loosen
+  the max-df cutoff — before moving on, since this is a hard ceiling on final
+  performance).
+- Candidate set size per entity stays small (roughly tens, not thousands) —
+  check the distribution, not just the average, since a few pathological
+  entities with huge blocks can silently dominate runtime.
+- The full-scale run (2M+ S1 entities against 5M+ S2/S3 pool) completes in a
+  time budget that leaves room for Phases 3–5 within the 72-hour window —
+  if it doesn't, that's a signal to tighten `MAX_TOKEN_DF_RATIO`/`MAX_NGRAM_DF_RATIO`
+  or optimize the indexing loop before proceeding, not something to defer.
 
 ---
 
