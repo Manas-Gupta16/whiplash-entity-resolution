@@ -1,0 +1,11 @@
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.5.1
+lightgbm==4.5.0
+rapidfuzz==3.9.6
+jellyfish==1.1.0
+scipy==1.13.1
+tqdm==4.66.4
+pyyaml==6.0.2
+matplotlib==3.9.1
+jupyter==1.0.0
