@@ -101,11 +101,16 @@ Tasks:
   achievable; if lower, add a blocking signal — e.g. a third index, or loosen
   the max-df cutoff — before moving on, since this is a hard ceiling on final
   performance).
-- Candidate set size per entity stays small (roughly tens, not thousands) —
-  check the distribution, not just the average, since a few pathological
-  entities with huge blocks can silently dominate runtime.
+- **Candidate set size per entity: track and minimize, not just cap.**
+  `candidate_pairs.tsv` now counts toward final ranking directly — a smaller
+  average candidate set per S1 entity, at equivalent recall, ranks higher.
+  Report the mean and median candidates-per-entity, not just "under the cap."
+  If reranking (`rerank_candidates`) is trimming most entities down to exactly
+  `MAX_CANDIDATES_PER_ENTITY`, consider whether that cap can be lowered, or
+  whether a tighter similarity threshold in reranking can shrink sets further
+  before the cap even kicks in — without dropping true matches.
 - The full-scale run (2M+ S1 entities against 5M+ S2/S3 pool) completes in a
-  time budget that leaves room for Phases 3–5 within the 72-hour window —
+  time budget that leaves room for Phases 3–5 within the challenge window —
   if it doesn't, that's a signal to tighten `MAX_TOKEN_DF_RATIO`/`MAX_NGRAM_DF_RATIO`
   or optimize the indexing loop before proceeding, not something to defer.
 
@@ -177,6 +182,16 @@ prints `PASS`. Fix every issue before uploading.
 
 **Goal:** get on the leaderboard early, then improve within the daily submission cap.
 
+**Portal note:** the leaderboard upload panel takes **only `matching_results.tsv`**
+— `candidate_pairs.tsv` is never uploaded there. It stays local, gets checked by
+`validate_submission.py`, and only ships inside the final zip (Phase 8) for
+audit purposes. Don't go looking for a place to upload it now.
+
+**Clock note:** the challenge runs on a live countdown from portal launch, not
+from whenever you personally start working — check the timer on the portal
+itself and treat the phase table in this doc's final section as a guide to
+proportion your remaining time against, not a fixed "hour 0" schedule.
+
 Tasks:
 1. First successful `PASS` → upload to the Portal same day (don't wait for a
    "final" version — a submitted baseline beats an unsubmitted perfect pipeline).
@@ -208,6 +223,14 @@ handful of France-labeled S1 entities' predictions for plausibility.
 ## Phase 8 — Final Package Assembly
 
 **Goal:** the `<team_name>_submission.zip` per the required structure.
+
+**Scoring note:** `candidate_pairs.tsv` and the blocking code that produces it
+are now reviewed as part of final ranking, alongside the `matching_results.tsv`
+leaderboard score. A smaller average candidate set per S1 entity (at equivalent
+recall) ranks higher. Make sure `Documentation_template.md`'s §3 (Candidate
+Generation) reports the actual candidate-count statistics prominently — mean,
+median, and the recall/set-size tradeoff you landed on — since this is now
+graded material, not just a diagnostic aside.
 
 Tasks:
 1. Copy final `src/` into `code/business_entity_resolution/src/`.

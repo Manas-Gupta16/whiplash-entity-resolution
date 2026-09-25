@@ -35,6 +35,14 @@ VALIDATION_FRACTION = 0.2
 RANDOM_SEED = 42
 
 # ---- Blocking ----
+# RANKING UPDATE: candidate_pairs.tsv now counts toward final ranking, separate
+# from the matching_results.tsv leaderboard score. A blocking approach that
+# produces a SMALLER average candidate set per S1 entity — while still hitting
+# the recall target — ranks higher. This shifts the objective from "stay under
+# the cap" to "actively minimize candidates per entity without losing recall."
+# Treat MAX_CANDIDATES_PER_ENTITY as an upper bound, not a target to fill —
+# track and try to reduce the ACTUAL average/median candidate count too.
+#
 # Dataset scale note: train_source1 ~2.2M rows, train_source2 ~5.0M, train_source3
 # ~5.3M (test is similar order of magnitude). A global sklearn NearestNeighbors /
 # TF-IDF fit over millions of vectors is NOT viable here (too slow, too much
